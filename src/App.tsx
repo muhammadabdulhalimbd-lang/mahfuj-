@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { AppState, DayLog, MonthData } from './types/trading';
+import { AppState, DayLog, MonthData, LotSettings } from './types/trading';
 import { 
   loadInitialState, 
   saveState, 
   createBlankMonth 
 } from './utils/storage';
-import { calcMonth } from './utils/calculations';
+import { calcMonth, num } from './utils/calculations';
 import { 
   STORAGE_KEY_TOUR, 
   STORAGE_KEY_THEME, 
@@ -14,6 +14,7 @@ import {
 
 import { Header } from './components/Header';
 import { CapitalRiskCard } from './components/CapitalRiskCard';
+import { LotSizeCalculator } from './components/LotSizeCalculator';
 import { MonthlyStatsCockpit } from './components/MonthlyStatsCockpit';
 import { DayStripCalendar } from './components/DayStripCalendar';
 import { MarketSessionsRadar } from './components/MarketSessionsRadar';
@@ -22,7 +23,7 @@ import { DailyLogCard } from './components/DailyLogCard';
 import { OnboardingTourModal } from './components/OnboardingTourModal';
 import { ExportModal } from './components/ExportModal';
 
-import { HelpCircle, ChevronUp, Layers, CheckCircle } from 'lucide-react';
+import { ChevronUp } from 'lucide-react';
 
 export default function App() {
   const [appState, setAppState] = useState<AppState>(() => loadInitialState());
@@ -89,6 +90,8 @@ export default function App() {
     return calcMonth(activeMonth);
   }, [activeMonth]);
 
+  const maxLossDollar = ((num(activeMonth.s) || 0) * (num(activeMonth.l) || 0)) / 100;
+
   // Handlers
   const handleSelectMonth = (idx: number) => {
     if (idx >= 0 && idx < appState.m.length) {
@@ -100,7 +103,13 @@ export default function App() {
   const handleNewMonth = () => {
     const endingBal = calculatedStats.bal;
     const newIdx = appState.m.length;
-    const newMonth = createBlankMonth(newIdx, endingBal, activeMonth.l || 2);
+    const newMonth = createBlankMonth(
+      newIdx,
+      endingBal,
+      activeMonth.l || 2,
+      activeMonth.dt || '',
+      activeMonth.mt || ''
+    );
     setAppState((prev) => ({
       c: newIdx,
       m: [...prev.m, newMonth],
@@ -119,7 +128,13 @@ export default function App() {
   const handleClearMonth = () => {
     setAppState((prev) => {
       const currentMonth = prev.m[prev.c];
-      const clearedMonth = createBlankMonth(prev.c, currentMonth.s, currentMonth.l);
+      const clearedMonth = createBlankMonth(
+        prev.c,
+        currentMonth.s,
+        currentMonth.l,
+        currentMonth.dt,
+        currentMonth.mt
+      );
       clearedMonth.nm = currentMonth.nm;
       const updatedMonths = [...prev.m];
       updatedMonths[prev.c] = clearedMonth;
@@ -127,14 +142,101 @@ export default function App() {
     });
   };
 
-  const handleUpdateCapital = (balance: number, maxLossPct: number) => {
+  const handleUpdateCapital = (balance: number, maxLossPct: number, dt: string, mt: string) => {
     setAppState((prev) => {
       const updatedMonths = [...prev.m];
       updatedMonths[prev.c] = {
         ...updatedMonths[prev.c],
         s: balance,
         l: maxLossPct,
+        dt,
+        mt,
       };
+      return { ...prev, m: updatedMonths };
+    });
+  };
+
+  const handleUpdateLotSettings = (settings: LotSettings) => {
+    setAppState((prev) => {
+      const updatedMonths = [...prev.m];
+      updatedMonths[prev.c] = {
+        ...updatedMonths[prev.c],
+        lot: settings,
+      };
+      return { ...prev, m: updatedMonths };
+    });
+  };
+
+  const handleApplyPropTargets = (mt: string, dt: string, maxLossPct: number) => {
+    setAppState((prev) => {
+      const updatedMonths = [...prev.m];
+      const current = updatedMonths[prev.c];
+      updatedMonths[prev.c] = {
+        ...current,
+        mt,
+        dt,
+        l: maxLossPct,
+      };
+      return { ...prev, m: updatedMonths };
+    });
+  };
+
+  // Toggle account type between Live and Prop Firm with snapshots
+  const handleSwitchAccountType = (newType: 'live' | 'prop') => {
+    setAppState((prev) => {
+      const updatedMonths = [...prev.m];
+      const current = { ...updatedMonths[prev.c] };
+      const currentType = current.lot?.a || 'live';
+
+      if (currentType === newType) return prev;
+
+      // Save current snapshot
+      const snap = { ...(current.snap || {}) };
+      snap[currentType] = {
+        s: String(current.s || ''),
+        dt: current.dt || '',
+        mt: current.mt || '',
+        l: String(current.l || ''),
+      };
+
+      current.snap = snap;
+
+      // Load target snapshot if exists
+      if (newType === 'live') {
+        if (snap.live) {
+          current.s = num(snap.live.s) || current.s;
+          current.dt = snap.live.dt;
+          current.mt = snap.live.mt;
+          current.l = num(snap.live.l) || current.l;
+        }
+      } else if (newType === 'prop') {
+        if (snap.prop) {
+          current.s = num(snap.prop.s) || 10000;
+          current.dt = snap.prop.dt;
+          current.mt = snap.prop.mt;
+          current.l = num(snap.prop.l) || 2;
+        } else {
+          // Default starting balance for prop firm is $10k
+          current.s = 10000;
+        }
+      }
+
+      current.lot = {
+        ...(current.lot || {
+          t: '3',
+          s: '20',
+          i: 'eurusd',
+          p: '',
+          n: '',
+          m: 'medium',
+          a: 'live',
+          ph: '1',
+          o: '10',
+        }),
+        a: newType,
+      };
+
+      updatedMonths[prev.c] = current;
       return { ...prev, m: updatedMonths };
     });
   };
@@ -217,12 +319,31 @@ export default function App() {
         <CapitalRiskCard
           startingBalance={activeMonth.s}
           maxLossPct={activeMonth.l}
+          dailyTarget={activeMonth.dt || ''}
+          monthlyTarget={activeMonth.mt || ''}
+          isPropMode={activeMonth.lot?.a === 'prop'}
+          propOption={activeMonth.lot?.o || '10'}
+          propPhase={activeMonth.lot?.ph || '1'}
           onUpdateCapital={handleUpdateCapital}
           lang={lang}
         />
 
         {/* Live Forex Market Sessions Radar */}
         <MarketSessionsRadar lang={lang} />
+
+        {/* 🧮 Lot Size Calculator */}
+        <LotSizeCalculator
+          startingBalance={activeMonth.s}
+          maxLossPct={activeMonth.l}
+          dailyLossDollar={maxLossDollar}
+          monthlyTarget={activeMonth.mt || ''}
+          dailyTarget={activeMonth.dt || ''}
+          lotSettings={activeMonth.lot || {}}
+          onUpdateLotSettings={handleUpdateLotSettings}
+          onApplyPropTargets={handleApplyPropTargets}
+          onSwitchAccountType={handleSwitchAccountType}
+          lang={lang}
+        />
 
         {/* Monthly Numbers Cockpit */}
         <MonthlyStatsCockpit stats={calculatedStats} lang={lang} />

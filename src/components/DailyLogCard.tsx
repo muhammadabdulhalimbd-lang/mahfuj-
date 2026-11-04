@@ -12,15 +12,10 @@ import {
 import { money, fp, num } from '../utils/calculations';
 import { 
   AlertTriangle, 
-  CheckCircle, 
-  XCircle, 
   ChevronDown, 
   ChevronUp, 
-  Star, 
   Sparkles,
-  Heart,
-  TrendingUp,
-  TrendingDown
+  Target
 } from 'lucide-react';
 
 interface DailyLogCardProps {
@@ -76,7 +71,7 @@ export const DailyLogCard: React.FC<DailyLogCardProps> = ({
     ? MOTIVATIONAL_QUOTES_BN[dayIndex % MOTIVATIONAL_QUOTES_BN.length] 
     : MOTIVATIONAL_QUOTES_EN[dayIndex % MOTIVATIONAL_QUOTES_EN.length];
 
-  // Emotion toggle
+  // Emotion toggle (0 -> 1 -> 2 -> 0)
   const handleCycleEmotion = () => {
     const current = Number(day.ce) || 0;
     const next = (current + 1) % 3;
@@ -90,10 +85,11 @@ export const DailyLogCard: React.FC<DailyLogCardProps> = ({
     onUpdateDay({ ...day, r: newRules });
   };
 
-  // Pre-trade checklist toggle
+  // Pre-trade checklist 3-state cycling: 0 (unset) -> 1 (followed ✓) -> 2 (not followed ❌) -> 0
   const handleToggleCheck = (checkIdx: number) => {
     const newChecks = [...(day.c || [0, 0, 0, 0])];
-    newChecks[checkIdx] = newChecks[checkIdx] ? 0 : 1;
+    const currentVal = Number(newChecks[checkIdx]) || 0;
+    newChecks[checkIdx] = (currentVal + 1) % 3;
     onUpdateDay({ ...day, c: newChecks });
   };
 
@@ -123,12 +119,14 @@ export const DailyLogCard: React.FC<DailyLogCardProps> = ({
   const rulesBroken = rules.filter((r) => r === 2).length;
 
   const checks = day.c || [0, 0, 0, 0];
-  const checksCompleted = checks.filter(Boolean).length;
+  const checksFollowed = checks.filter((v) => Number(v) === 1).length;
+  const checksBroken = checks.filter((v) => Number(v) === 2).length;
 
   const netProfit = calcResult?.net ?? 0;
   const hasTrades = calcResult?.any || calcResult?.anyp;
   const isLoss = calcResult?.tone ? calcResult.tone < 0 : false;
   const isWin = calcResult?.tone ? calcResult.tone > 0 : false;
+  const isTargetHit = calcResult?.hitTarget;
 
   let cardBorder = 'border-slate-200 dark:border-slate-800';
   let cardBg = 'bg-white dark:bg-slate-900';
@@ -200,6 +198,11 @@ export const DailyLogCard: React.FC<DailyLogCardProps> = ({
         <div className="text-right font-mono">
           {calcResult?.any ? (
             <div className="flex items-center gap-2">
+              {isTargetHit && (
+                <span title="Daily target achieved!" className="text-emerald-500 text-base">
+                  🎯
+                </span>
+              )}
               <span
                 className={`text-sm sm:text-base font-extrabold ${
                   netProfit > 0
@@ -302,7 +305,7 @@ export const DailyLogCard: React.FC<DailyLogCardProps> = ({
         )}
       </div>
 
-      {/* Accordion 2: Pre-Trade Checklist */}
+      {/* Accordion 2: Pre-Trade Checklist (3-state: 0=unset, 1=✓ on, 2=❌ no) */}
       <div className="mb-3.5 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50/50 dark:bg-slate-950/40">
         <button
           onClick={() => setShowChecklist(!showChecklist)}
@@ -312,12 +315,14 @@ export const DailyLogCard: React.FC<DailyLogCardProps> = ({
             <span>{lang === 'bn' ? 'ট্রেডের আগে চেকলিস্ট (Pre-Trade Checklist)' : 'Pre-Trade Checklist'}</span>
             <span
               className={`text-[11px] font-mono px-1.5 py-0.5 rounded font-bold ${
-                checksCompleted === preCheckList.length
+                checksFollowed === preCheckList.length
                   ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
                   : 'bg-slate-200 dark:bg-slate-800 text-slate-500'
               }`}
             >
-              {checksCompleted}/{preCheckList.length} {checksCompleted === preCheckList.length ? '✓' : ''}
+              {checksFollowed}/{preCheckList.length}
+              {checksBroken > 0 && ` · ${checksBroken}❌`}
+              {checksFollowed === preCheckList.length && ' ✓'}
             </span>
           </div>
           {showChecklist ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
@@ -327,28 +332,43 @@ export const DailyLogCard: React.FC<DailyLogCardProps> = ({
           <div className="p-3 pt-1 border-t border-slate-200 dark:border-slate-800 space-y-2">
             <div className="bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 px-2.5 py-1.5 rounded-lg text-xs font-semibold">
               {lang === 'bn' 
-                ? '⚠️ কোনো বক্স ফাঁকা থাকলে কোনো ট্রেড এন্ট্রি নেওয়া যাবে না।' 
-                : '⚠️ Any unchecked box = NO TRADE allowed.'}
+                ? '⚠️ ১ বার ট্যাপ = ✓ মেনেছি, ২ বার ট্যাপ = ❌ মানিনি। কোনো বক্স খালি বা ❌ থাকলে ট্রেড করা নিষিদ্ধ।' 
+                : '⚠️ 1st tap = ✓ Followed, 2nd tap = ❌ Not followed. Any empty box or ❌ = NO TRADE permitted.'}
             </div>
             <div className="space-y-1.5">
               {preCheckList.map((checkText, idx) => {
-                const isChecked = !!checks[idx];
+                const checkState = Number(checks[idx]) || 0;
                 return (
                   <button
                     key={idx}
+                    type="button"
                     onClick={() => handleToggleCheck(idx)}
-                    className="w-full flex items-center gap-2.5 p-2 rounded-lg hover:bg-white dark:hover:bg-slate-900 text-xs font-medium text-slate-800 dark:text-slate-200 text-left transition"
+                    className={`w-full flex items-center justify-between p-2 rounded-lg text-xs font-medium text-left transition border ${
+                      checkState === 1
+                        ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-700 dark:text-emerald-300'
+                        : checkState === 2
+                        ? 'bg-rose-500/10 border-rose-500/40 text-rose-700 dark:text-rose-300'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300'
+                    }`}
                   >
-                    <div
-                      className={`w-5 h-5 rounded-md border flex items-center justify-center text-white transition ${
-                        isChecked
-                          ? 'bg-emerald-500 border-emerald-500 font-bold'
-                          : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900'
-                      }`}
-                    >
-                      {isChecked && '✓'}
+                    <div className="flex items-center gap-2.5">
+                      <div
+                        className={`w-5 h-5 rounded-md border flex items-center justify-center text-xs transition ${
+                          checkState === 1
+                            ? 'bg-emerald-500 border-emerald-500 text-white font-bold'
+                            : checkState === 2
+                            ? 'border-rose-500 bg-rose-500 text-white font-bold'
+                            : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900'
+                        }`}
+                      >
+                        {checkState === 1 ? '✓' : checkState === 2 ? '❌' : ''}
+                      </div>
+                      <span>{checkText}</span>
                     </div>
-                    <span>{checkText}</span>
+
+                    <span className="font-mono text-[11px] font-bold">
+                      {checkState === 1 ? '✓ Followed' : checkState === 2 ? '❌ Not Followed' : '–'}
+                    </span>
                   </button>
                 );
               })}

@@ -17,6 +17,9 @@ export function buildJournalLines(S: MonthData, stats: CalculatedStats): Journal
     ['Ending balance', money(stats.bal)],
     ['Net P/L', money(stats.net)],
     ['Total pips', stats.res.some((r) => r.anyp) ? `${fp(stats.tp)} pips` : '–'],
+    ['Daily profit target', num(S.dt) > 0 ? money(num(S.dt)) : '–'],
+    ['Total profit target', num(S.mt) > 0 ? `${money(num(S.mt))} (${pct(stats.net / num(S.mt))} done)` : '–'],
+    ['Remaining to target', num(S.mt) > 0 ? (stats.net >= num(S.mt) ? 'Reached 🎯' : money(num(S.mt) - stats.net)) : '–'],
     ['Total trades', String(stats.tr)],
     ['Win rate', stats.tr ? pct(stats.w / stats.tr) : '–'],
     ['Avg win', stats.wd ? money(stats.gp / stats.wd) : '–'],
@@ -53,7 +56,9 @@ export function buildJournalLines(S: MonthData, stats: CalculatedStats): Journal
       .map((x, k) => (x ? `${k + 1}. ${RULES_EN[k]} ${x === 1 ? '✓' : '✗'}` : ''))
       .filter(Boolean);
 
-    const checkCount = (day.c || []).slice(0, PRE_CHECK_EN.length).filter(Boolean).length;
+    const checkCount = (day.c || []).slice(0, PRE_CHECK_EN.length).filter((v) => Number(v) === 1).length;
+    const checkFailed = (day.c || []).slice(0, PRE_CHECK_EN.length).filter((v) => Number(v) === 2).length;
+
     const tradeLines = (day.t || [])
       .map((t, k) =>
         t.p || t.d || t.ap || t.pl || t.pp
@@ -67,6 +72,7 @@ export function buildJournalLines(S: MonthData, stats: CalculatedStats): Journal
       r?.any ||
       rulesFollowed.length > 0 ||
       checkCount > 0 ||
+      checkFailed > 0 ||
       tradeLines.length > 0 ||
       moodVal > 0 ||
       day.mk ||
@@ -78,14 +84,18 @@ export function buildJournalLines(S: MonthData, stats: CalculatedStats): Journal
     hasEntries = true;
 
     const weekday = DAYS_OF_WEEK_SHORT[i % 5];
-    const dayHeader = `${weekday} · Day ${i + 1}${r?.any ? `  |  Net: ${money(r.net)}  |  Bal: ${money(r.bal)}` : ''}${r?.anyp ? `  |  ${fp(r.pips)} pips` : ''}`;
+    const targetTag = r?.hitTarget ? '  🎯' : '';
+    const dayHeader = `${weekday} · Day ${i + 1}${r?.any ? `  |  Net: ${money(r.net)}  |  Bal: ${money(r.bal)}` : ''}${r?.anyp ? `  |  ${fp(r.pips)} pips` : ''}${targetTag}`;
     lines.push({ type: r?.has ? (r.tone < 0 ? 'n' : 'p') : 'b', text: dayHeader });
 
     tradeLines.forEach((tl) => lines.push({ type: 't', text: tl }));
     rulesFollowed.forEach((rf) => lines.push({ type: 't', text: `Rule: ${rf}` }));
 
-    if (checkCount > 0) {
-      lines.push({ type: 't', text: `Pre-trade checklist: ${checkCount}/${PRE_CHECK_EN.length} ✓` });
+    if (checkCount > 0 || checkFailed > 0) {
+      lines.push({
+        type: 't',
+        text: `Pre-trade checklist: ${checkCount}/${PRE_CHECK_EN.length} ✓${checkFailed ? ` (${checkFailed} ✗ not followed)` : ''}`,
+      });
     }
     if (day.ce) {
       lines.push({

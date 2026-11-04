@@ -18,7 +18,13 @@ export function createBlankDay(): DayLog {
   };
 }
 
-export function createBlankMonth(monthIndex: number = 0, startingBalance: number = 1000, maxLossPct: number = 2): MonthData {
+export function createBlankMonth(
+  monthIndex: number = 0,
+  startingBalance: number = 1000,
+  maxLossPct: number = 2,
+  dt: string = '',
+  mt: string = ''
+): MonthData {
   const d: DayLog[] = [];
   for (let i = 0; i < 20; i++) {
     d.push(createBlankDay());
@@ -26,9 +32,23 @@ export function createBlankMonth(monthIndex: number = 0, startingBalance: number
   return {
     s: startingBalance,
     l: maxLossPct,
+    dt: dt || '',
+    mt: mt || '',
     nm: `Month ${monthIndex + 1}`,
     d,
     wm: ['', '', '', ''],
+    lot: {
+      t: '3',
+      s: '20',
+      i: 'eurusd',
+      p: '',
+      n: '',
+      m: 'medium',
+      a: 'live',
+      ph: '1',
+      o: '10',
+    },
+    snap: {},
   };
 }
 
@@ -40,12 +60,28 @@ export function loadInitialState(): AppState {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && Array.isArray(parsed.m) && parsed.m.length > 0) {
-        // Ensure all months and days have proper shapes
         parsed.m = parsed.m.map((month: MonthData, mIdx: number) => {
           if (!month.nm) month.nm = `Month ${mIdx + 1}`;
           if (!month.wm) month.wm = ['', '', '', ''];
+          if (month.dt === undefined) month.dt = '';
+          if (month.mt === undefined) month.mt = '';
+          if (!month.lot) {
+            month.lot = {
+              t: '3',
+              s: '20',
+              i: 'eurusd',
+              p: '',
+              n: '',
+              m: 'medium',
+              a: 'live',
+              ph: '1',
+              o: '10',
+            };
+          }
+          if (!month.snap) month.snap = {};
+
           if (!Array.isArray(month.d) || month.d.length !== 20) {
-            const blank = createBlankMonth(mIdx, month.s || 1000, month.l || 2);
+            const blank = createBlankMonth(mIdx, month.s || 1000, month.l || 2, month.dt, month.mt);
             month.d = blank.d;
           } else {
             month.d = month.d.map((day) => ({
@@ -69,6 +105,8 @@ export function loadInitialState(): AppState {
       if (p && Array.isArray(p.d) && p.d.length === 20) {
         p.nm = 'Month 1';
         p.wm = ['', '', '', ''];
+        p.dt = '';
+        p.mt = '';
         return { c: 0, m: [p] };
       }
     }

@@ -11,7 +11,8 @@ import {
   Activity, 
   Layers,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  Flag
 } from 'lucide-react';
 
 interface MonthlyStatsCockpitProps {
@@ -51,10 +52,14 @@ export const MonthlyStatsCockpit: React.FC<MonthlyStatsCockpitProps> = ({ stats,
   }
 
   const isNetPositive = stats.net >= 0;
+  const hasMonthlyTarget = stats.monthlyTarget > 0;
+  const targetPct = hasMonthlyTarget ? Math.max(0, Math.min(100, (stats.net / stats.monthlyTarget) * 100)) : 0;
+  const isTargetAchieved = hasMonthlyTarget && stats.net >= stats.monthlyTarget;
+  const remainingDollar = hasMonthlyTarget ? Math.max(0, stats.monthlyTarget - stats.net) : 0;
 
   return (
     <section className="space-y-3">
-      {/* Hero Balance Card */}
+      {/* Hero Balance Card with Target Progress Bar */}
       <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-950 to-blue-950 text-white rounded-2xl p-5 border border-slate-800 shadow-xl shadow-slate-950/40">
         
         {/* Subtle background glow */}
@@ -62,7 +67,7 @@ export const MonthlyStatsCockpit: React.FC<MonthlyStatsCockpitProps> = ({ stats,
         <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
-          <div>
+          <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-xs font-semibold uppercase tracking-wider text-sky-400/90">
                 {lang === 'bn' ? 'চলতি ব্যালেন্স ও ইকুইটি' : 'Account Balance & Equity'}
@@ -91,7 +96,30 @@ export const MonthlyStatsCockpit: React.FC<MonthlyStatsCockpitProps> = ({ stats,
               </div>
             </div>
 
-            <p className="text-xs text-slate-400 mt-1">
+            {/* Target Progress Bar */}
+            {hasMonthlyTarget && (
+              <div className="mt-3 max-w-md">
+                <div className="h-3.5 bg-slate-800/80 rounded-full overflow-hidden border border-slate-700/60 p-0.5">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-emerald-600 via-emerald-500 to-green-400 shadow-[0_0_12px_rgba(34,197,94,0.6)] transition-all duration-500"
+                    style={{ width: `${targetPct}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-xs text-sky-200/90 font-medium mt-1.5">
+                  <span>
+                    {lang === 'bn' ? 'টার্গেট: ' : 'Target: '}
+                    <b>{money(stats.monthlyTarget)}</b> · {targetPct.toFixed(1)}%
+                  </span>
+                  <span className="font-bold text-emerald-400">
+                    {isTargetAchieved
+                      ? (lang === 'bn' ? '🎯 পূরণ হয়েছে!' : '🎯 Target Reached!')
+                      : (lang === 'bn' ? `আর ${money(remainingDollar)} লাগবে` : `${money(remainingDollar)} to go`)}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <p className="text-xs text-slate-400 mt-2">
               {stats.tr > 0
                 ? (lang === 'bn' 
                     ? `${stats.tr}টি ট্রেড সম্পন্ন · উইন রেট ${pct(stats.w / stats.tr)}` 
@@ -224,6 +252,58 @@ export const MonthlyStatsCockpit: React.FC<MonthlyStatsCockpitProps> = ({ stats,
         </div>
 
       </div>
+
+      {/* Target Metrics Row if targets are set */}
+      {(hasMonthlyTarget || stats.dailyTarget > 0) && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          {/* Monthly Target Progress */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm flex items-center justify-between">
+            <div>
+              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 block">
+                {lang === 'bn' ? 'মাসিক টার্গেট অগ্রগতি' : 'Monthly Target Progress'}
+              </span>
+              <span className="text-xs sm:text-sm font-bold font-mono text-slate-900 dark:text-slate-100">
+                {money(stats.net)} / {money(stats.monthlyTarget)}
+              </span>
+            </div>
+            <span className="text-xs font-bold font-mono text-sky-600 dark:text-sky-400">
+              {stats.monthlyTarget ? pct(stats.net / stats.monthlyTarget) : '–'}
+            </span>
+          </div>
+
+          {/* Daily Target Hit Days */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm flex items-center justify-between">
+            <div>
+              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 block">
+                {lang === 'bn' ? 'দৈনিক টার্গেট অর্জন (Days)' : 'Daily Target Hit Days'}
+              </span>
+              <span className="text-xs sm:text-sm font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                {stats.dailyTarget > 0 ? `${stats.dailyTargetHitDays} দিন (Days)` : '–'}
+              </span>
+            </div>
+            <span className="text-xs font-semibold text-slate-400">
+              {stats.dailyTarget > 0 ? `Target: ${money(stats.dailyTarget)}` : '–'}
+            </span>
+          </div>
+
+          {/* Remaining To Target */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm flex items-center justify-between">
+            <div>
+              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 block">
+                {lang === 'bn' ? 'টার্গেট পূরণে আর লাগবে' : 'Remaining To Target'}
+              </span>
+              <span className="text-xs sm:text-sm font-bold font-mono text-indigo-600 dark:text-indigo-400">
+                {hasMonthlyTarget
+                  ? isTargetAchieved
+                    ? '🎯 পূরণ হয়েছে!'
+                    : money(remainingDollar)
+                  : '–'}
+              </span>
+            </div>
+            <Flag className="w-4 h-4 text-indigo-500 shrink-0" />
+          </div>
+        </div>
+      )}
 
       {/* Secondary Pips summary row */}
       {stats.res.some((r) => r.anyp) && (

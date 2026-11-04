@@ -37,6 +37,9 @@ export function amt(x: number): string {
 export function calcMonth(S: MonthData): CalculatedStats {
   const start = num(S.s) || 0;
   const lim = ((num(S.l) || 0) / 100) * start;
+  const dailyTgt = num(S.dt) || 0;
+  const monthlyTgt = num(S.mt) || 0;
+
   let bal = start;
   let peak = start;
   let mdd = 0;
@@ -58,6 +61,8 @@ export function calcMonth(S: MonthData): CalculatedStats {
   let apY = 0;
   let apN = 0;
   let apW = 0;
+
+  let dailyTargetHitDays = 0;
 
   const res: DayCalcResult[] = [];
   const wk: WeekCalcResult[] = [0, 1, 2, 3].map(() => ({ t: 0, w: 0, n: 0, p: 0 }));
@@ -134,12 +139,18 @@ export function calcMonth(S: MonthData): CalculatedStats {
     }
 
     const hit = any && lim > 0 && dayNet <= -lim;
+    const hitTarget = any && dailyTgt > 0 && dayNet >= dailyTgt;
+    if (hitTarget) {
+      dailyTargetHitDays++;
+    }
+
     const tone = any ? dayNet : anyp ? dayPips : 0;
     res.push({
       any,
       net: dayNet,
       bal,
       hit,
+      hitTarget,
       anyp,
       pips: dayPips,
       has: any || anyp,
@@ -150,6 +161,7 @@ export function calcMonth(S: MonthData): CalculatedStats {
   const pf = gl === 0 ? (gp === 0 ? '–' : '∞') : (gp / Math.abs(gl)).toFixed(2);
   const net = bal - start;
   const disc = yn ? y / yn : NaN;
+  const remainingToTarget = monthlyTgt > 0 ? (net >= monthlyTgt ? 0 : monthlyTgt - net) : 0;
 
   return {
     start,
@@ -172,6 +184,10 @@ export function calcMonth(S: MonthData): CalculatedStats {
     apY,
     apN,
     apW,
+    dailyTargetHitDays,
+    monthlyTarget: monthlyTgt,
+    dailyTarget: dailyTgt,
+    remainingToTarget,
     res,
     wk,
   };

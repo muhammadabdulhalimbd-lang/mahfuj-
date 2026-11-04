@@ -11,18 +11,44 @@ export interface DayLog {
   t: Trade[];     // 3 trades
   m: string;      // Mood (1-5)
   n: string;      // Notes
-  c?: number[];   // Pre-trade checklist items (0/1)
+  c?: number[];   // Pre-trade checklist items: 0=unset, 1=followed (✓), 2=not followed (❌)
   ce?: number;    // Control emotion: 0=unset, 1=controlled, 2=broken
   mk?: string;    // Biggest mistake today
   nf?: string;    // Next day focus
 }
 
+export interface LotSettings {
+  t: string;      // Trades per day (e.g. "3")
+  s: string;      // Stop loss in pips (e.g. "20")
+  i: string;      // Instrument (e.g. "eurusd", "xauusd", "custom")
+  p: string;      // Custom pip value
+  n: string;      // Custom instrument name
+  m: 'safe' | 'medium' | 'high'; // Risk mode
+  a: 'live' | 'prop';           // Account type
+  ph: '1' | '2' | 'live';       // Prop phase
+  o: '8' | '10';                // Prop target option (8% or 10%)
+}
+
+export interface AccountSnapshot {
+  s: string;      // Starting balance
+  dt: string;     // Daily target
+  mt: string;     // Monthly target
+  l: string;      // Max loss %
+}
+
 export interface MonthData {
   s: number;      // Starting balance ($)
   l: number;      // Max daily loss (%)
+  dt?: string;    // Daily profit target ($)
+  mt?: string;    // Total / Monthly profit target ($)
   nm: string;     // Month name (e.g., "Month 1", "March 2026")
   d: DayLog[];    // 20 trading days
   wm?: string[];  // 4 weekly biggest mistakes
+  lot?: Partial<LotSettings>; // Lot size calculator settings
+  snap?: {
+    live?: AccountSnapshot;
+    prop?: AccountSnapshot;
+  };
 }
 
 export interface AppState {
@@ -35,6 +61,7 @@ export interface DayCalcResult {
   net: number;
   bal: number;
   hit: boolean;       // Hit max daily loss limit
+  hitTarget: boolean; // Hit daily profit target
   anyp: boolean;
   pips: number;
   has: boolean;
@@ -69,6 +96,10 @@ export interface CalculatedStats {
   apY: number;
   apN: number;
   apW: number;
+  dailyTargetHitDays: number;
+  monthlyTarget: number;
+  dailyTarget: number;
+  remainingToTarget: number;
   res: DayCalcResult[];
   wk: WeekCalcResult[];
 }
