@@ -1,0 +1,6 @@
+{
+  "name": "Mahfuj Trading Log",
+  "description": "Professional 20-day Forex & Trading Discipline Journal, Real-Time Market Session Radar, Risk Calculator & Analytics Cockpit.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
